@@ -16,6 +16,14 @@ from baselines.a2c.utils import Scheduler, make_path, find_trainable_variables
 from baselines.a2c.policies import CnnPolicy
 from baselines.a2c.utils import cat_entropy, mse
 
+# Fix A2C crash on OS X High Sierra
+# https://github.com/openai/baselines/pull/205
+# On OS X, certain Objective-C runtime classes must be initialised before any
+# threads are created if they are to be used in forked process. See commit
+# comments for more details.
+from cv2.ocl import useOpenCL
+useOpenCL()
+
 class Model(object):
 
     def __init__(self, policy, ob_space, ac_space, nenvs, nsteps, nstack, num_procs,
@@ -69,7 +77,7 @@ class Model(object):
 
         def save(save_path):
             ps = sess.run(params)
-            make_path(save_path)
+            make_path(osp.dirname(save_path)
             joblib.dump(ps, save_path)
 
         def load(load_path):
@@ -91,7 +99,7 @@ class Model(object):
 
 class Runner(object):
 
-    def __init__(self, env, model, nsteps=5, nstack=4, gamma=0.99):
+    def __init__(self, env, model, nsteps=5, nstack=4, gamma=0.99, _lambda=1.0):
         self.env = env
         self.model = model
         nh, nw, nc = env.observation_space.shape
@@ -102,6 +110,7 @@ class Runner(object):
         obs = env.reset()
         self.update_obs(obs)
         self.gamma = gamma
+        self._lambda = _lambda
         self.nsteps = nsteps
         self.states = model.initial_state
         self.dones = [False for _ in range(nenv)]
@@ -140,14 +149,23 @@ class Runner(object):
         mb_dones = mb_dones[:, 1:]
         last_values = self.model.value(self.obs, self.states, self.dones).tolist()
         #discount/bootstrap off value fn
-        for n, (rewards, dones, value) in enumerate(zip(mb_rewards, mb_dones, last_values)):
-            rewards = rewards.tolist()
-            dones = dones.tolist()
-            if dones[-1] == 0:
-                rewards = discount_with_dones(rewards+[value], dones+[0], self.gamma)[:-1]
-            else:
-                rewards = discount_with_dones(rewards, dones, self.gamma)
-            mb_rewards[n] = rewards
+#        for n, (rewards, dones, value) in enumerate(zip(mb_rewards, mb_dones, last_values)):
+#            rewards = rewards.tolist()
+#            dones = dones.tolist()
+#            if dones[-1] == 0:
+#                rewards = discount_with_dones(rewards+[value], dones+[0], self.gamma)[:-1]
+#            else:
+#                rewards = discount_with_dones(rewards, dones, self.gamma)
+        # Generalized advantages for a2c. Kept lambda=1 by default.
+        # https://github.com/openai/baselines/pull/133
+        for n, (rewards, dones, values, value) in enumerate(zip(mb_rewards, mb_dones, mb_values, last_values)):
+            values_appended = np.asarray(values.tolist() + [value if dones[-1]==0 else 0])
+            dones_appended = np.asarray(dones.tolist() + [0])
+            one_step_advantages = rewards + (1 - dones_appended[:-1]) * self.gamma * values_appended[1:] - values_appended[:-1]
+            generalized_advantages = discount_with_dones(one_step_advantages, dones, self.gamma * self._lambda)
+            # generalized_advantages becomes same as (nstep discounted returns - values) when _lambda=1 (as in standard A2C/A3C implementation)
+            rewards = values + np.asarray(generalized_advantages)
+             mb_rewards[n] = rewards
         mb_rewards = mb_rewards.flatten()
         mb_actions = mb_actions.flatten()
         mb_values = mb_values.flatten()

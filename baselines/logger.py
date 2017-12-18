@@ -6,6 +6,7 @@ import json
 import time
 import datetime
 import tempfile
+import errno
 from mpi4py import MPI
 
 LOG_OUTPUT_FORMATS = ['stdout', 'log', 'csv']
@@ -139,7 +140,7 @@ class TensorBoardOutputFormat(KVWriter):
     Dumps key/value pairs into TensorBoard's numeric format.
     """
     def __init__(self, dir):
-        os.makedirs(dir, exist_ok=True)
+        makedirs(dir)
         self.dir = dir
         self.step = 1
         prefix = 'events'
@@ -170,7 +171,7 @@ class TensorBoardOutputFormat(KVWriter):
             self.writer = None
 
 def make_output_format(format, ev_dir):
-    os.makedirs(ev_dir, exist_ok=True)
+    makedirs(ev_dir)
     rank = MPI.COMM_WORLD.Get_rank()
     if format == 'stdout':
         return HumanOutputFormat(sys.stdout)
@@ -220,11 +221,12 @@ def getkvs():
     return Logger.CURRENT.name2val
 
 
-def log(*args, level=INFO):
+def log(*args, **kwargs):
     """
     Write the sequence of args, with no separators, to the console and output files (if you've configured an output file).
     """
-    Logger.CURRENT.log(*args, level=level)
+    level = kwargs['level'] if 'level' in kwargs else INFO
+    Logger.CURRENT.log(level, *args)
 
 def debug(*args):
     log(*args, level=DEBUG)
@@ -252,6 +254,15 @@ def get_dir():
     """
     return Logger.CURRENT.get_dir()
 
+def makedirs(path):
+    try:
+        os.makedirs(path)
+    except OSError as exc:  # Python >2.5
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
+ 
 record_tabular = logkv
 dump_tabular = dumpkvs
 
@@ -282,7 +293,7 @@ class Logger(object):
                 fmt.writekvs(self.name2val)
         self.name2val.clear()
 
-    def log(self, *args, level=INFO):
+    def log(self, level=INFO, *args):
         if self.level <= level:
             self._do_log(args)
 

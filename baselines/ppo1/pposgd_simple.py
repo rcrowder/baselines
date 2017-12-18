@@ -97,7 +97,7 @@ def learn(env, policy_func, *,
     ret = tf.placeholder(dtype=tf.float32, shape=[None]) # Empirical return
 
     lrmult = tf.placeholder(name='lrmult', dtype=tf.float32, shape=[]) # learning rate multiplier, updated with schedule
-    clip_param = clip_param * lrmult # Annealed cliping parameter epislon
+    clip_param = clip_param * lrmult # Annealed clipping parameter epsilon
 
     ob = U.get_placeholder_cached(name="ob")
     ac = pi.pdtype.sample_placeholder([None])
@@ -127,6 +127,12 @@ def learn(env, policy_func, *,
 
     U.initialize()
     adam.sync()
+
+    # Resume model if a model file is provided
+    if restore_model_from_file:
+        saver=tf.train.Saver()
+        saver.restore(tf.get_default_session(), restore_model_from_file)
+        logger.log("Loaded model from {}".format(restore_model_from_file))
 
     # Prepare for rollouts
     # ----------------------------------------
@@ -211,6 +217,16 @@ def learn(env, policy_func, *,
         logger.record_tabular("TimeElapsed", time.time() - tstart)
         if MPI.COMM_WORLD.Get_rank()==0:
             logger.dump_tabular()
+
+        # Save model after every 500 iters if a file name to save is given
+        import os 
+        if iters_so_far % 500 ==0:
+            if save_model_with_prefix:
+                basePath=os.path.dirname(os.path.abspath(__file__))
+                modelF= basePath + '/' + save_model_with_prefix+"_afterIter_"+str(iters_so_far)+".model"
+                U.save_state(modelF)
+                logger.log("Saved model to file :{}".format(modelF))
+
 
 def flatten_lists(listoflists):
     return [el for list_ in listoflists for el in list_]

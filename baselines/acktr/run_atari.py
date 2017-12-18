@@ -28,10 +28,11 @@ def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--env', help='environment ID', default='BreakoutNoFrameskip-v4')
     parser.add_argument('--seed', help='RNG seed', type=int, default=0)
+    parser.add_argument('--num_cpu', help='Number of CPU threads', type=int, default=32)
     parser.add_argument('--num-timesteps', type=int, default=int(10e6))
     args = parser.parse_args()
     logger.configure()
-    train(args.env, num_timesteps=args.num_timesteps, seed=args.seed, num_cpu=32)
+    train(args.env, num_timesteps=args.num_timesteps, seed=args.seed, num_cpu=args.num_cpu)
 
 
 if __name__ == '__main__':

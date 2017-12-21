@@ -1,12 +1,15 @@
 from baselines.common import Dataset, explained_variance, fmt_row, zipsame
 from baselines import logger
 import baselines.common.tf_util as U
-import tensorflow as tf, numpy as np
+import tensorflow as tf
+import numpy as np
 import time
+import datetime
 from baselines.common.mpi_adam import MpiAdam
 from baselines.common.mpi_moments import mpi_moments
 from mpi4py import MPI
 from collections import deque
+
 
 def traj_segment_generator(pi, env, horizon, stochastic):
     t = 0
@@ -61,6 +64,7 @@ def traj_segment_generator(pi, env, horizon, stochastic):
             ob = env.reset()
         t += 1
 
+
 def add_vtarg_and_adv(seg, gamma, lam):
     """
     Compute target value using TD(lambda) estimator, and advantage with GAE(lambda)
@@ -77,6 +81,7 @@ def add_vtarg_and_adv(seg, gamma, lam):
         gaelam[t] = lastgaelam = delta + gamma * lam * nonterminal * lastgaelam
     seg["tdlamret"] = seg["adv"] + seg["vpred"]
 
+
 def learn(env, policy_func, *,
         timesteps_per_actorbatch, # timesteps per actor per update
         clip_param, entcoeff, # clipping parameter epsilon, entropy coeff
@@ -85,8 +90,14 @@ def learn(env, policy_func, *,
         max_timesteps=0, max_episodes=0, max_iters=0, max_seconds=0,  # time constraint
         callback=None, # you can do anything in the callback, since it takes locals(), globals()
         adam_epsilon=1e-5,
-        schedule='constant' # annealing for stepsize parameters (epsilon and adam)
+        schedule='constant', # annealing for stepsize parameters (epsilon and adam)
+        restore_model_from_file=None,
+        save_model_with_prefix=None
         ):
+    ldir = datetime.datetime.now().strftime("openai-%Y-%m-%d-%H-%M-%S-%f")
+    log_formats = ['stdout', 'log', 'json', 'tensorboard']
+    logger.configure(dir=ldir, format_strs=log_formats)
+
     # Setup losses and stuff
     # ----------------------------------------
     ob_space = env.observation_space
@@ -148,7 +159,9 @@ def learn(env, policy_func, *,
     assert sum([max_iters>0, max_timesteps>0, max_episodes>0, max_seconds>0])==1, "Only one time constraint permitted"
 
     while True:
-        if callback: callback(locals(), globals())
+        if callback is not None:
+            if callback(locals(), globals()):
+                break
         if max_timesteps and timesteps_so_far >= max_timesteps:
             break
         elif max_episodes and episodes_so_far >= max_episodes:

@@ -1,5 +1,6 @@
 import os
 import tempfile
+import datetime
 
 import tensorflow as tf
 import zipfile
@@ -162,6 +163,11 @@ def learn(env,
         Wrapper over act function. Adds ability to save it and load it.
         See header of baselines/deepq/categorical.py for details on the act function.
     """
+
+    ldir = datetime.datetime.now().strftime("openai-%Y-%m-%d-%H-%M-%S-%f")
+    log_formats = ['stdout', 'log', 'json', 'tensorboard']
+    logger.configure(dir=ldir, format_strs=log_formats)
+
     # Create all the functions necessary to train the model
 
     sess = tf.Session()

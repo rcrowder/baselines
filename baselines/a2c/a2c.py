@@ -77,7 +77,7 @@ class Model(object):
 
         def save(save_path):
             ps = sess.run(params)
-            make_path(osp.dirname(save_path)
+            make_path(osp.dirname(save_path))
             joblib.dump(ps, save_path)
 
         def load(load_path):
@@ -165,7 +165,7 @@ class Runner(object):
             generalized_advantages = discount_with_dones(one_step_advantages, dones, self.gamma * self._lambda)
             # generalized_advantages becomes same as (nstep discounted returns - values) when _lambda=1 (as in standard A2C/A3C implementation)
             rewards = values + np.asarray(generalized_advantages)
-             mb_rewards[n] = rewards
+            mb_rewards[n] = rewards
         mb_rewards = mb_rewards.flatten()
         mb_actions = mb_actions.flatten()
         mb_values = mb_values.flatten()

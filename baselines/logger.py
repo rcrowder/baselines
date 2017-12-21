@@ -9,7 +9,7 @@ import tempfile
 import errno
 from mpi4py import MPI
 
-LOG_OUTPUT_FORMATS = ['stdout', 'log', 'csv']
+LOG_OUTPUT_FORMATS = ['stdout', 'log', 'csv', 'tensorboard']
 # Also valid: json, tensorboard
 
 DEBUG = 10
